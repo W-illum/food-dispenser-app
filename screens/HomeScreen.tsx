@@ -140,29 +140,6 @@ export default function HomeScreen({
         </View>
       </View>
 
-      {/* Manual feed */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Manual Feed</Text>
-        <View style={styles.amountRow}>
-          <TouchableOpacity
-            style={styles.stepButton}
-            onPress={() => setManualAmount((a) => Math.max(5, a - 5))}
-          >
-            <Text style={styles.stepButtonText}>−</Text>
-          </TouchableOpacity>
-          <Text style={styles.amountValue}>{manualAmount}g</Text>
-          <TouchableOpacity
-            style={styles.stepButton}
-            onPress={() => setManualAmount((a) => Math.min(100, a + 5))}
-          >
-            <Text style={styles.stepButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity style={styles.feedButton} onPress={handleManualFeed}>
-          <Text style={styles.feedButtonText}>Feed now</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Schedule */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -207,6 +184,29 @@ export default function HomeScreen({
             </TouchableOpacity>
           </View>
         ))}
+      </View>
+
+      {/* Manual feed */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Manual Feed</Text>
+        <View style={styles.amountRow}>
+          <TouchableOpacity
+            style={styles.stepButton}
+            onPress={() => setManualAmount((a) => Math.max(5, a - 5))}
+          >
+            <Text style={styles.stepButtonText}>−</Text>
+          </TouchableOpacity>
+          <Text style={styles.amountValue}>{manualAmount}g</Text>
+          <TouchableOpacity
+            style={styles.stepButton}
+            onPress={() => setManualAmount((a) => Math.min(100, a + 5))}
+          >
+            <Text style={styles.stepButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={styles.feedButton} onPress={handleManualFeed}>
+          <Text style={styles.feedButtonText}>Feed now</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Add time modal */}

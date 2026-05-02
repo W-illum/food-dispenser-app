@@ -69,7 +69,9 @@ export function useBle() {
         setScanning(false);
         return;
       }
-      if (device?.name) {
+      if (!device) return;
+      const name = device.name?.toLowerCase() ?? '';
+      if (name.includes('feeder') || name.includes('dispenser')) {
         setDevices((prev) => {
           if (prev.find((d) => d.id === device.id)) return prev;
           return [...prev, device];
