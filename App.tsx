@@ -1,20 +1,23 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import ConnectScreen from './screens/ConnectScreen';
+import HomeScreen from './screens/HomeScreen';
+
+type Device = {
+  id: string;
+  name: string;
+};
 
 export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Cat Feeder App!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+  const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+  if (connectedDevice) {
+    return (
+      <HomeScreen
+        deviceName={connectedDevice.name}
+        onDisconnect={() => setConnectedDevice(null)}
+      />
+    );
+  }
+
+  return <ConnectScreen onConnect={(device) => setConnectedDevice(device)} />;
+}
