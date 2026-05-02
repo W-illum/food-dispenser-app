@@ -1,23 +1,32 @@
-import { useState } from 'react';
+import { useBle } from './hooks/useBle';
 import ConnectScreen from './screens/ConnectScreen';
 import HomeScreen from './screens/HomeScreen';
 
-type Device = {
-  id: string;
-  name: string;
-};
-
 export default function App() {
-  const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
+  const ble = useBle();
 
-  if (connectedDevice) {
+  if (ble.connectedDevice) {
     return (
       <HomeScreen
-        deviceName={connectedDevice.name}
-        onDisconnect={() => setConnectedDevice(null)}
+        deviceName={ble.connectedDevice.name ?? 'CatFeeder'}
+        status={ble.status}
+        schedule={ble.schedule}
+        onDisconnect={ble.disconnect}
+        onManualFeed={ble.manualFeed}
+        onSetFoodAmount={ble.setFoodAmount}
+        onAddSchedule={ble.addScheduleEntry}
+        onRemoveSchedule={ble.removeScheduleEntry}
+        onSyncClock={ble.syncClock}
       />
     );
   }
 
-  return <ConnectScreen onConnect={(device) => setConnectedDevice(device)} />;
+  return (
+    <ConnectScreen
+      scanning={ble.scanning}
+      devices={ble.devices}
+      onScan={ble.startScan}
+      onConnect={ble.connect}
+    />
+  );
 }

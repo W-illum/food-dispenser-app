@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -7,43 +7,88 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
-
-type ScheduleEntry = {
-  index: number;
-  hour: number;
-  minute: number;
-};
+import { StatusData, ScheduleEntry } from '../hooks/useBle';
+import { lidarToPercent } from '../utils/bleConstants';
 
 type Props = {
   deviceName: string;
+  status: StatusData | null;
+  schedule: ScheduleEntry[];
   onDisconnect: () => void;
+  onManualFeed: (grams: number) => Promise<void>;
+  onSetFoodAmount: (grams: number) => Promise<void>;
+  onAddSchedule: (hour: number, minute: number) => Promise<void>;
+  onRemoveSchedule: (index: number) => Promise<void>;
+  onSyncClock: () => Promise<void>;
 };
-
-const FAKE_SCHEDULE: ScheduleEntry[] = [
-  { index: 0, hour: 7, minute: 0 },
-  { index: 1, hour: 18, minute: 30 },
-];
 
 function pad(n: number) {
   return n.toString().padStart(2, '0');
 }
 
-export default function HomeScreen({ deviceName, onDisconnect }: Props) {
-  const [foodAmount, setFoodAmount] = useState(30);
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>(FAKE_SCHEDULE);
+export default function HomeScreen({
+  deviceName,
+  status,
+  schedule,
+  onDisconnect,
+  onManualFeed,
+  onSetFoodAmount,
+  onAddSchedule,
+  onRemoveSchedule,
+  onSyncClock,
+}: Props) {
+  const [manualAmount, setManualAmount] = useState(30);
+  const [scheduledAmount, setScheduledAmount] = useState(30);
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [inputHour, setInputHour] = useState('');
+  const [inputMinute, setInputMinute] = useState('');
+  const scheduledAmountInitialized = useRef(false);
+
+  useEffect(() => {
+    if (status?.foodAmount && !scheduledAmountInitialized.current) {
+      setScheduledAmount(status.foodAmount);
+      scheduledAmountInitialized.current = true;
+    }
+  }, [status?.foodAmount]);
 
   function handleManualFeed() {
-    Alert.alert('Manual Feed', `Dispensing ${foodAmount}g of food!`);
+    Alert.alert('Feed now?', `Dispense ${manualAmount}g of food?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Feed',
+        onPress: () => onManualFeed(manualAmount).catch((e) => Alert.alert('Error', String(e))),
+      },
+    ]);
   }
 
-  function handleRemoveSchedule(index: number) {
-    setSchedule((prev) => prev.filter((e) => e.index !== index));
+  function handleScheduledAmountChange(delta: number) {
+    const next = Math.min(100, Math.max(5, scheduledAmount + delta));
+    setScheduledAmount(next);
+    onSetFoodAmount(next).catch(() => {});
   }
 
-  function handleAddSchedule() {
-    Alert.alert('Coming soon', 'Time picker will go here');
+  function handleAddConfirm() {
+    const h = parseInt(inputHour, 10);
+    const m = parseInt(inputMinute, 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+      Alert.alert('Invalid time', 'Enter a valid hour (0–23) and minute (0–59).');
+      return;
+    }
+    if (schedule.some((e) => e.hour === h && e.minute === m)) {
+      Alert.alert('Already exists', `${pad(h)}:${pad(m)} is already in the schedule.`);
+      return;
+    }
+    onAddSchedule(h, m).catch((e) => Alert.alert('Error', String(e)));
+    setAddModalVisible(false);
+    setInputHour('');
+    setInputMinute('');
   }
+
+  const foodLevel = status ? lidarToPercent(status.lidarMm) : 0;
+  const hasStatus = status !== null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -62,23 +107,36 @@ export default function HomeScreen({ deviceName, onDisconnect }: Props) {
 
       {/* Status card */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Status</Text>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Status</Text>
+          <TouchableOpacity onPress={() => onSyncClock().catch(() => {})}>
+            <Text style={styles.syncLabel}>Sync clock</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.statusRow}>
           <View style={styles.statusItem}>
             <Text style={styles.statusLabel}>Time</Text>
-            <Text style={styles.statusValue}>14:32</Text>
+            <Text style={styles.statusValue}>
+              {hasStatus ? `${pad(status!.hour)}:${pad(status!.minute)}` : '--:--'}
+            </Text>
           </View>
           <View style={styles.statusItem}>
             <Text style={styles.statusLabel}>Next feed</Text>
-            <Text style={styles.statusValue}>18:30</Text>
+            <Text style={styles.statusValue}>
+              {hasStatus && status!.scheduleCount > 0
+                ? `${pad(status!.nextHour)}:${pad(status!.nextMinute)}`
+                : '--:--'}
+            </Text>
           </View>
           <View style={styles.statusItem}>
             <Text style={styles.statusLabel}>Food level</Text>
-            <Text style={styles.statusValue}>72%</Text>
+            <Text style={styles.statusValue}>
+              {hasStatus && status!.lidarMm >= 0 ? `${foodLevel}%` : '--'}
+            </Text>
           </View>
         </View>
         <View style={styles.foodBar}>
-          <View style={[styles.foodBarFill, { width: '72%' }]} />
+          <View style={[styles.foodBarFill, { width: `${foodLevel}%` as any }]} />
         </View>
       </View>
 
@@ -88,14 +146,14 @@ export default function HomeScreen({ deviceName, onDisconnect }: Props) {
         <View style={styles.amountRow}>
           <TouchableOpacity
             style={styles.stepButton}
-            onPress={() => setFoodAmount((a) => Math.max(5, a - 5))}
+            onPress={() => setManualAmount((a) => Math.max(5, a - 5))}
           >
             <Text style={styles.stepButtonText}>−</Text>
           </TouchableOpacity>
-          <Text style={styles.amountValue}>{foodAmount}g</Text>
+          <Text style={styles.amountValue}>{manualAmount}g</Text>
           <TouchableOpacity
             style={styles.stepButton}
-            onPress={() => setFoodAmount((a) => Math.min(100, a + 5))}
+            onPress={() => setManualAmount((a) => Math.min(100, a + 5))}
           >
             <Text style={styles.stepButtonText}>+</Text>
           </TouchableOpacity>
@@ -109,9 +167,20 @@ export default function HomeScreen({ deviceName, onDisconnect }: Props) {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Schedule</Text>
-          <TouchableOpacity onPress={handleAddSchedule}>
-            <Text style={styles.addButton}>+ Add</Text>
-          </TouchableOpacity>
+          <View style={styles.scheduleHeaderRight}>
+            <TouchableOpacity onPress={() => handleScheduledAmountChange(-5)}>
+              <Text style={styles.amountStepText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.amountInlineValue}>{scheduledAmount}g</Text>
+            <TouchableOpacity onPress={() => handleScheduledAmountChange(5)}>
+              <Text style={styles.amountStepText}>+</Text>
+            </TouchableOpacity>
+            {schedule.length < 4 && (
+              <TouchableOpacity onPress={() => setAddModalVisible(true)} style={styles.addButtonContainer}>
+                <Text style={styles.addButton}>+ Add</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         {schedule.length === 0 && (
           <Text style={styles.emptyText}>No feeding times set</Text>
@@ -121,12 +190,65 @@ export default function HomeScreen({ deviceName, onDisconnect }: Props) {
             <Text style={styles.scheduleTime}>
               {pad(entry.hour)}:{pad(entry.minute)}
             </Text>
-            <TouchableOpacity onPress={() => handleRemoveSchedule(entry.index)}>
+            <TouchableOpacity
+              onPress={() =>
+                Alert.alert('Remove', `Remove ${pad(entry.hour)}:${pad(entry.minute)}?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: () =>
+                      onRemoveSchedule(entry.index).catch((e) => Alert.alert('Error', String(e))),
+                  },
+                ])
+              }
+            >
               <Text style={styles.removeButton}>Remove</Text>
             </TouchableOpacity>
           </View>
         ))}
       </View>
+
+      {/* Add time modal */}
+      <Modal visible={addModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Add feeding time</Text>
+            <View style={styles.modalInputRow}>
+              <TextInput
+                style={styles.timeInput}
+                placeholder="HH"
+                placeholderTextColor="#555"
+                keyboardType="number-pad"
+                maxLength={2}
+                value={inputHour}
+                onChangeText={setInputHour}
+              />
+              <Text style={styles.timeSeparator}>:</Text>
+              <TextInput
+                style={styles.timeInput}
+                placeholder="MM"
+                placeholderTextColor="#555"
+                keyboardType="number-pad"
+                maxLength={2}
+                value={inputMinute}
+                onChangeText={setInputMinute}
+              />
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setAddModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={handleAddConfirm}>
+                <Text style={styles.modalConfirmText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -183,9 +305,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#aaa',
-    marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  syncLabel: {
+    color: '#f0a500',
+    fontSize: 13,
   },
   statusRow: {
     flexDirection: 'row',
@@ -280,5 +405,98 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
     paddingVertical: 12,
+  },
+  scheduleHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  amountStepText: {
+    color: '#f0a500',
+    fontSize: 20,
+    fontWeight: 'bold',
+    paddingHorizontal: 4,
+  },
+  amountInlineValue: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    minWidth: 36,
+    textAlign: 'center',
+  },
+  addButtonContainer: {
+    marginLeft: 8,
+    borderLeftWidth: 1,
+    borderLeftColor: '#444',
+    paddingLeft: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBox: {
+    backgroundColor: '#1e1e30',
+    borderRadius: 16,
+    padding: 24,
+    width: 280,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    gap: 8,
+  },
+  timeInput: {
+    backgroundColor: '#2e2e45',
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    width: 70,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  timeSeparator: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#aaa',
+    fontSize: 15,
+  },
+  modalConfirm: {
+    flex: 1,
+    backgroundColor: '#f0a500',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

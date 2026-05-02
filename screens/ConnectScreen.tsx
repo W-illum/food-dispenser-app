@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -8,44 +7,26 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
-
-type Device = {
-  id: string;
-  name: string;
-};
-
-const FAKE_DEVICES: Device[] = [
-  { id: '1', name: 'Food Dispenser' },
-  { id: '2', name: 'BLE_Unknown_A4F2' },
-];
+import { Device } from 'react-native-ble-plx';
 
 type Props = {
+  scanning: boolean;
+  devices: Device[];
+  onScan: () => void;
   onConnect: (device: Device) => void;
 };
 
-export default function ConnectScreen({ onConnect }: Props) {
-  const [scanning, setScanning] = useState(false);
-  const [devices, setDevices] = useState<Device[]>([]);
-
-  function handleScan() {
-    setScanning(true);
-    setDevices([]);
-    setTimeout(() => {
-      setDevices(FAKE_DEVICES);
-      setScanning(false);
-    }, 1500);
-  }
-
+export default function ConnectScreen({ scanning, devices, onScan, onConnect }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      <Text style={styles.title}>Feeder App</Text>
+      <Text style={styles.title}>Food Dispenser</Text>
       <Text style={styles.subtitle}>Connect to your device</Text>
 
       <TouchableOpacity
         style={[styles.scanButton, scanning && styles.scanButtonDisabled]}
-        onPress={handleScan}
+        onPress={onScan}
         disabled={scanning}
       >
         {scanning ? (
