@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { StatusData, ScheduleEntry } from '../hooks/useBle';
 import { lidarToPercent } from '../utils/bleConstants';
+import ConfirmModal from '../components/ConfirmModal';
 
 type Props = {
   deviceName: string;
@@ -43,6 +44,8 @@ export default function HomeScreen({
   const [manualAmount, setManualAmount] = useState(30);
   const [scheduledAmount, setScheduledAmount] = useState(30);
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [feedConfirmVisible, setFeedConfirmVisible] = useState(false);
+  const [removeEntry, setRemoveEntry] = useState<ScheduleEntry | null>(null);
   const [inputHour, setInputHour] = useState('');
   const [inputMinute, setInputMinute] = useState('');
   const scheduledAmountInitialized = useRef(false);
@@ -55,13 +58,7 @@ export default function HomeScreen({
   }, [status?.foodAmount]);
 
   function handleManualFeed() {
-    Alert.alert('Feed now?', `Dispense ${manualAmount}g of food?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Feed',
-        onPress: () => onManualFeed(manualAmount).catch((e) => Alert.alert('Error', String(e))),
-      },
-    ]);
+    setFeedConfirmVisible(true);
   }
 
   function handleScheduledAmountChange(delta: number) {
@@ -167,19 +164,7 @@ export default function HomeScreen({
             <Text style={styles.scheduleTime}>
               {pad(entry.hour)}:{pad(entry.minute)}
             </Text>
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert('Remove', `Remove ${pad(entry.hour)}:${pad(entry.minute)}?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Remove',
-                    style: 'destructive',
-                    onPress: () =>
-                      onRemoveSchedule(entry.index).catch((e) => Alert.alert('Error', String(e))),
-                  },
-                ])
-              }
-            >
+            <TouchableOpacity onPress={() => setRemoveEntry(entry)}>
               <Text style={styles.removeButton}>Remove</Text>
             </TouchableOpacity>
           </View>
@@ -208,6 +193,35 @@ export default function HomeScreen({
           <Text style={styles.feedButtonText}>Feed now</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Feed confirmation */}
+      <ConfirmModal
+        visible={feedConfirmVisible}
+        title="Feed now?"
+        message={`Dispense ${manualAmount}g of food?`}
+        confirmText="Feed"
+        onConfirm={() => {
+          setFeedConfirmVisible(false);
+          onManualFeed(manualAmount).catch((e) => Alert.alert('Error', String(e)));
+        }}
+        onCancel={() => setFeedConfirmVisible(false)}
+      />
+
+      {/* Remove schedule confirmation */}
+      <ConfirmModal
+        visible={removeEntry !== null}
+        title="Remove feeding time?"
+        message={removeEntry ? `${pad(removeEntry.hour)}:${pad(removeEntry.minute)} will be removed.` : ''}
+        confirmText="Remove"
+        destructive
+        onConfirm={() => {
+          if (removeEntry) {
+            onRemoveSchedule(removeEntry.index).catch((e) => Alert.alert('Error', String(e)));
+          }
+          setRemoveEntry(null);
+        }}
+        onCancel={() => setRemoveEntry(null)}
+      />
 
       {/* Add time modal */}
       <Modal visible={addModalVisible} transparent animationType="fade">
