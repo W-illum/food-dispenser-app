@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Platform, PermissionsAndroid, Alert } from 'react-native';
+import { useState, useRef, useEffect } from 'react';
+import { Platform, PermissionsAndroid, Alert, AppState } from 'react-native';
 import { BleManager, Device } from 'react-native-ble-plx';
 import {
   SERVICE_UUID,
@@ -55,6 +55,19 @@ export function useBle() {
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const deviceRef = useRef<Device | null>(null);
 
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background' && deviceRef.current) {
+        deviceRef.current.cancelConnection();
+        deviceRef.current = null;
+        setConnectedDevice(null);
+        setStatus(null);
+        setSchedule([]);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   async function startScan() {
     const granted = await requestPermissions();
     if (!granted) {
@@ -97,7 +110,14 @@ export function useBle() {
       await readSchedule(connected);
 
       connected.monitorCharacteristicForService(SERVICE_UUID, STATUS_UUID, (error, char) => {
-        if (error || !char?.value) return;
+        if (error) {
+          deviceRef.current = null;
+          setConnectedDevice(null);
+          setStatus(null);
+          setSchedule([]);
+          return;
+        }
+        if (!char?.value) return;
         const b = base64ToBytes(char.value);
         if (b.length < 8) return;
         const raw = b[2] | (b[3] << 8);
