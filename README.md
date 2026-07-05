@@ -1,7 +1,7 @@
 # Food Dispenser App
 
 A React Native mobile app used as a controller for the **Food Dispenser** firmware:
-[https://github.com/W-illum/food-dispenser/](https://github.com/W-illum/food-dispenser/)
+[https://github.com/W-illum/food-dispenser-v2](https://github.com/W-illum/food-dispenser-v2)
 
 The feeder runs on an Arduino Nano ESP32 and exposes a GATT BLE service. All feeding logic lives on the device, the app is purely a remote control.
 
